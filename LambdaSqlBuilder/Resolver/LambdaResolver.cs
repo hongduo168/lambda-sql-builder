@@ -8,6 +8,7 @@ using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text;
 using LambdaSqlBuilder.Builder;
+using System.Collections.Concurrent;
 
 namespace LambdaSqlBuilder.Resolver
 {
@@ -36,14 +37,22 @@ namespace LambdaSqlBuilder.Resolver
             return GetColumnName(GetMemberExpression(selector.Body));
         }
 
+        private static ConcurrentDictionary<object, string> columnName = new ConcurrentDictionary<object, string>();
         public static string GetColumnName(Expression expression)
         {
-            var member = GetMemberExpression(expression);
-            var column = member.Member.GetCustomAttributes(false).OfType<SqlLambdaColumnAttribute>().FirstOrDefault();
-            if (column != null)
-                return column.Name;
-            else
-                return member.Member.Name;
+            var name = string.Empty;
+            if (!columnName.TryGetValue(expression, out name))
+            {
+                var member = GetMemberExpression(expression);
+                var column = member.Member.GetCustomAttributes(false).OfType<SqlLambdaColumnAttribute>().FirstOrDefault();
+                if (column != null)
+                    name = column.Name;
+                else
+                    name = member.Member.Name;
+
+                columnName[expression] = name;
+            }
+            return name;
         }
 
         public static string GetTableName<T>()
@@ -51,13 +60,22 @@ namespace LambdaSqlBuilder.Resolver
             return GetTableName(typeof(T));
         }
 
+        private static ConcurrentDictionary<object, string> tableName = new ConcurrentDictionary<object, string>();
         public static string GetTableName(Type type)
         {
-            var column = type.GetCustomAttributes(false).OfType<SqlLambdaTableAttribute>().FirstOrDefault();
-            if (column != null)
-                return column.Name;
-            else
-                return type.Name;
+            var name = string.Empty;
+            if (!tableName.TryGetValue(type, out name))
+            {
+                var column = type.GetCustomAttributes(false).OfType<SqlLambdaTableAttribute>().FirstOrDefault();
+                if (column != null)
+                    name = column.Name;
+                else
+                    name = type.Name;
+
+                tableName[type] = name;
+            }
+
+            return name;
         }
 
         private static string GetTableName(MemberExpression expression)
